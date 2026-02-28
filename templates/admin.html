@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login - Voting System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="login-container">
+            <!-- Logo -->
+            <div class="logo-section">
+                <h1>👨‍💼 ADMIN PANEL</h1>
+                <p class="tagline">System Management & Control</p>
+            </div>
+
+            <!-- Error Message -->
+            <div id="errorMessage" class="alert alert-error" style="display: none;"></div>
+
+            <!-- Admin Login Form -->
+            <div class="login-form">
+                <h2>🔐 Admin Login</h2>
+                <p class="form-description">Manage the voting system</p>
+                
+                <div class="form-group">
+                    <label for="adminPassword">🔒 Admin Password</label>
+                    <input type="password" id="adminPassword" placeholder="Enter admin password" required>
+                </div>
+
+                <button class="btn btn-danger" onclick="adminLogin()">LOGIN</button>
+            </div>
+
+            <!-- Back Button -->
+            <div class="toggle-section">
+                <p>
+                    <a href="/">← Back to Home</a>
+                </p>
+            </div>
+
+            <!-- Demo Info -->
+            <div class="info-box">
+                <p><strong>📝 Admin Demo:</strong></p>
+                <p>Password: <code>admin123</code></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        function adminLogin() {
+            const password = document.getElementById('adminPassword').value;
+
+            if (!password) {
+                showError('Please enter admin password');
+                return;
+            }
+
+            fetch('/api/admin-login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    password: password
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.href = '/admin/dashboard';
+                } else {
+                    showError(data.error || 'Login failed');
+                }
+            })
+            .catch(error => {
+                showError('Connection error: ' + error.message);
+            });
+        }
+
+        // Allow Enter key to submit
+        document.getElementById('adminPassword').addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                adminLogin();
+            }
+        });
+
+        // Focus on password input
+        document.getElementById('adminPassword').focus();
+    </script>
+</body>
+</html>

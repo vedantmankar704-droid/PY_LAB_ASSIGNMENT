@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Voting System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-left">
+                <h1>👨‍💼 ADMIN CONTROL PANEL</h1>
+            </div>
+            <div class="header-right">
+                <button class="btn btn-secondary" onclick="logout()">LOGOUT</button>
+            </div>
+        </div>
+
+        <!-- Admin Dashboard -->
+        <div class="admin-dashboard">
+            <!-- Statistics Section -->
+            <div class="admin-section">
+                <h2>📊 Voting Statistics</h2>
+                <div id="statisticsDisplay" class="statistics"></div>
+            </div>
+
+            <!-- Chart Section -->
+            <div class="admin-section">
+                <h2>📈 Vote Distribution Chart</h2>
+                <canvas id="adminChart" width="400" height="300"></canvas>
+            </div>
+
+            <!-- Admin Controls -->
+            <div class="admin-section">
+                <h2>⚙️ Admin Controls</h2>
+                <div class="admin-buttons">
+                    <button class="btn btn-warning" onclick="resetVoting()">🔄 Reset Voting</button>
+                    <button class="btn btn-info" onclick="exportCSV()">💾 Export CSV</button>
+                    <button class="btn btn-info" onclick="exportTXT()">💾 Export TXT</button>
+                    <button class="btn btn-success" onclick="refreshStats()">🔄 Refresh</button>
+                </div>
+            </div>
+
+            <!-- Status Display -->
+            <div class="admin-section">
+                <div id="statusDisplay" class="status-display"></div>
+            </div>
+        </div>
+
+        <!-- Messages -->
+        <div id="successMessage" class="alert alert-success" style="display: none;"></div>
+        <div id="errorMessage" class="alert alert-error" style="display: none;"></div>
+    </div>
+
+    <script>
+        let chart = null;
+
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        function showSuccess(message) {
+            const successDiv = document.getElementById('successMessage');
+            successDiv.textContent = message;
+            successDiv.style.display = 'block';
+            setTimeout(() => {
+                successDiv.style.display = 'none';
+            }, 3000);
+        }
+
+        function loadStatistics() {
+            fetch('/api/results')
+                .then(response => response.json())
+                .then(data => {
+                    displayStatistics(data);
+                    displayChart(data);
+                    displayStatus();
+                })
+                .catch(error => {
+                    showError('Failed to load statistics: ' + error.message);
+                });
+        }
+
+        function displayStatistics(data) {
+            const statsDisplay = document.getElementById('statisticsDisplay');
+            statsDisplay.innerHTML = '';
+
+            const statsTable = document.createElement('div');
+            statsTable.className = 'stats-table';
+            
+            let tableHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Candidate</th>
+                            <th>Votes</th>
+                            <th>Percentage</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            data.results.forEach(result => {
+                tableHTML += `
+                    <tr>
+                        <td>${result.name}</td>
+                        <td>${result.votes}</td>
+                        <td>${result.percentage}%</td>
+                    </tr>
+                `;
+            });
+
+            tableHTML += `
+                    </tbody>
+                </table>
+                <div class="summary">
+                    <p>Total Votes: <strong>${data.total_votes}</strong></p>
+                    <p>Leader: <strong>${data.winner}</strong></p>
+                </div>
+            `;
+
+            statsTable.innerHTML = tableHTML;
+            statsDisplay.appendChild(statsTable);
+        }
+
+        function displayChart(data) {
+            const ctx = document.getElementById('adminChart').getContext('2d');
+            const labels = data.results.map(r => r.name);
+            const votes = data.results.map(r => r.votes);
+            const colors = ['#3498DB', '#E74C3C', '#27AE60', '#F39C12'];
+
+            if (chart) {
+                chart.destroy();
+            }
+
+            chart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: votes,
+                        backgroundColor: colors.slice(0, labels.length),
+                        borderColor: '#fff',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                font: { size: 12 },
+                                padding: 15
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.label + ': ' + context.parsed + ' votes';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function displayStatus() {
+            fetch('/api/voting-status')
+                .then(response => response.json())
+                .then(data => {
+                    const statusDisplay = document.getElementById('statusDisplay');
+                    statusDisplay.innerHTML = `
+                        <div class="status-info">
+                            <p>✓ Voting Status: <strong style="color: #27AE60;">ACTIVE</strong></p>
+                            <p>📊 Total Votes: <strong>${data.total_votes}</strong></p>
+                            <p>👥 Unique Voters: <strong>${data.unique_voters}</strong></p>
+                        </div>
+                    `;
+                })
+                .catch(error => {
+                    showError('Failed to load status: ' + error.message);
+                });
+        }
+
+        function resetVoting() {
+            if (confirm('⚠️ Are you sure you want to reset all voting data?\nThis cannot be undone!')) {
+                fetch('/api/admin/reset', { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            showSuccess('✓ Voting system reset successfully!');
+                            setTimeout(loadStatistics, 1000);
+                        } else {
+                            showError(data.error || 'Failed to reset');
+                        }
+                    })
+                    .catch(error => {
+                        showError('Error: ' + error.message);
+                    });
+            }
+        }
+
+        function exportCSV() {
+            fetch('/api/admin/export-csv')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        downloadFile(data.csv, data.filename, 'text/csv');
+                        showSuccess('✓ CSV file downloaded!');
+                    } else {
+                        showError(data.error || 'Export failed');
+                    }
+                })
+                .catch(error => {
+                    showError('Export error: ' + error.message);
+                });
+        }
+
+        function exportTXT() {
+            fetch('/api/admin/export-txt')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        downloadFile(data.txt, data.filename, 'text/plain');
+                        showSuccess('✓ TXT file downloaded!');
+                    } else {
+                        showError(data.error || 'Export failed');
+                    }
+                })
+                .catch(error => {
+                    showError('Export error: ' + error.message);
+                });
+        }
+
+        function downloadFile(content, filename, type) {
+            const element = document.createElement('a');
+            element.setAttribute('href', 'data:' + type + ';charset=utf-8,' + encodeURIComponent(content));
+            element.setAttribute('download', filename);
+            element.style.display = 'none';
+            document.body.appendChild(element);
+            element.click();
+            document.body.removeChild(element);
+        }
+
+        function refreshStats() {
+            loadStatistics();
+            showSuccess('✓ Statistics refreshed!');
+        }
+
+        function logout() {
+            if (confirm('Are you sure you want to logout?')) {
+                fetch('/api/logout', { method: 'POST' })
+                    .then(() => {
+                        window.location.href = '/';
+                    });
+            }
+        }
+
+        // Load statistics on page load
+        window.addEventListener('load', () => {
+            loadStatistics();
+            
+            // Auto-refresh every 5 seconds
+            setInterval(loadStatistics, 5000);
+        });
+    </script>
+</body>
+</html>
